@@ -59,18 +59,16 @@ namespace WebcamCapture
         System.DateTime sartRecordingTime;
         System.DateTime lastRecordingVideoTime;
         System.DateTime lastRecordingSoundTime;
-        VideoFileWriter vf;
+
 
         VideoFileWriter writer;
 
 
         private MemoryStream stream;
 
-        //private IAudioSource source;
-        private IAudioOutput output;
 
         private WaveEncoder encoder;
-        private WaveDecoder decoder;
+
         Process process;
 
         private float[] current;
@@ -94,7 +92,31 @@ namespace WebcamCapture
             videoSource.NewFrame += VideoSource_NewFrame;
             videoSource.Start();
 
-            vf = new VideoFileWriter();
+            initalizeAudioStuff();
+            try
+            {
+                myConnector = new ConnectorHub.ConnectorHub();
+                myConnector.init();
+                myConnector.amIvideo = true;
+                myConnector.sendReady();
+               
+
+                myConnector.startRecordingEvent += MyConnector_startRecordingEvent;
+                myConnector.stopRecordingEvent += MyConnector_stopRecordingEvent;
+            }
+            catch
+            {
+
+            }
+
+
+            this.Closing += MainWindow_Closing;
+
+        }
+
+        #region audio
+        private void initalizeAudioStuff()
+        {
 
             try
             {
@@ -120,38 +142,36 @@ namespace WebcamCapture
 
                 //AudioCaptureDevice source = new AudioCaptureDevice();
                 AudioSource.DesiredFrameSize = 4096;
-                AudioSource.SampleRate = 16000;
+                AudioSource.SampleRate = 44100;
+                //int sampleRate = 44100;
+                //int sampleRate = 22050;
 
                 AudioSource.NewFrame += AudioSource_NewFrame;
-                AudioSource.Format = SampleFormat.Format16Bit;
+               // AudioSource.Format = SampleFormat.Format64BitIeeeFloat;
                 AudioSource.AudioSourceError += AudioSource_AudioSourceError;
-               // AudioSource.Start();
+                // AudioSource.Start();
                 int x = 1;
             }
             catch
             {
 
             }
-        
 
-            try
-            {
-                myConnector = new ConnectorHub.ConnectorHub();
-                myConnector.init();
-                myConnector.amIvideo = true;
-                myConnector.sendReady();
-               
+            // Create buffer for wavechart control
+            current = new float[AudioSource.DesiredFrameSize];
 
-                myConnector.startRecordingEvent += MyConnector_startRecordingEvent;
-                myConnector.stopRecordingEvent += MyConnector_stopRecordingEvent;
-            }
-            catch
-            {
+            // Create stream to store file
+            stream = new MemoryStream();
+            encoder = new WaveEncoder(stream);
 
-            }
+            frames = 0;
+            samples = 0;
+            
 
 
-            this.Closing += MainWindow_Closing;
+            // Start
+            AudioSource.Start();
+
 
         }
 
@@ -161,60 +181,53 @@ namespace WebcamCapture
             x++;
         }
 
-        private void MyConnector_stopRecordingEvent(object sender)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                Button_Click_1(null, null);
-            });
-        }
-
-        private void MyConnector_startRecordingEvent(object sender)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                Button_Click(null, null);
-            });
-        }
-
         private void AudioSource_NewFrame(object sender, Accord.Audio.NewFrameEventArgs e)
         {
-            //byte[] audio = (byte[])e.Signal.RawData.Clone();
-            //int mm= AudioSource.BytesReceived;
+
             if (isRecording)
             {
-                //try
-                //{
-                //    System.TimeSpan diff1 = DateTime.Now.Subtract(sartRecordingTime);
-                //    if (diff1.Seconds >= 1.0 / 30)
-                //    {
-                //        writer.WriteAudioFrame(e.Signal.RawData);
-                //    }
+                System.TimeSpan diff1 = DateTime.Now.Subtract(sartRecordingTime);
+                if (diff1.Seconds >= 1.0 )
+                {
+                    //writer.WriteAudioFrame(e.Signal.RawData);
+                    e.Signal.CopyTo(current);
 
-                //}
-                //catch
-                //{
-                //    int x = 0;
-                //    x++;
-                //}
-
-                e.Signal.CopyTo(current);
+                    encoder.Encode(e.Signal);
 
 
-              //  updateWaveform(current, e.Signal.Length);
+                    duration += e.Signal.Duration;
 
+                    samples += e.Signal.Samples;
+                    frames += e.Signal.Length;
+                }
 
-                encoder.Encode(e.Signal);
-
-
-                duration += e.Signal.Duration;
-
-                samples += e.Signal.Samples;
-                frames += e.Signal.Length;
-
-
+               
             }
         }
+
+        private void doAudioStop()
+        {
+            // Stops both cases
+            if (AudioSource != null)
+            {
+                // If we were recording
+                AudioSource.SignalToStop();
+                AudioSource.WaitForStop();
+            }
+
+
+            var fileStream = File.Create(filenameAudio);
+            stream.WriteTo(fileStream);
+            fileStream.Close();
+
+            // Also zero out the buffers and screen
+            Array.Clear(current, 0, current.Length);
+ 
+        }
+
+        #endregion
+
+        #region video
 
         private void VideoSource_NewFrame(object sender, Accord.Video.NewFrameEventArgs eventArgs)
         {
@@ -237,14 +250,14 @@ namespace WebcamCapture
                 bi.Freeze();
                 ImageWebcam.Source = bi;
 
-                
 
-                if(isRecording)
+
+                if (isRecording)
                 {
                     captureFunction(eventArgs.Frame);
                 }
             });
-           
+
         }
 
 
@@ -252,15 +265,15 @@ namespace WebcamCapture
         {
             try
             {
-                
+
                 System.TimeSpan diff1 = DateTime.Now.Subtract(sartRecordingTime);
-                if(diff1.Seconds>=1.0/30)
+                if (diff1.Seconds >= 1.0 / 30)
                 {
                     // vf.WriteVideoFrame(bitmap, diff1);
-                    writer.WriteVideoFrame(bitmap,diff1);
-                    
+                    writer.WriteVideoFrame(bitmap, diff1);
+
                 }
-                
+
 
             }
             catch (Exception e)
@@ -271,11 +284,24 @@ namespace WebcamCapture
             i++;
         }
 
+        #endregion
+
+
+        #region startRecording
+
+        private void MyConnector_startRecordingEvent(object sender)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                Button_Click(null, null);
+            });
+        }
+
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             isRecording = true;
-            
-           
+
+
             sartRecordingTime = DateTime.Now;
             lastRecordingVideoTime = sartRecordingTime;
             lastRecordingSoundTime = sartRecordingTime;
@@ -285,57 +311,50 @@ namespace WebcamCapture
             filenameCombined = time + "c.mp4";
             time = time + ".mp4";
             filename = time;
-            
+
 
 
             int frameRate = 30;
             int bitRate = 400000;
             int audioBitrate = 320000;
             //int audioBitrate = 4096;
-             int sampleRate = 44100;
+            int sampleRate = 44100;
             //int sampleRate = 22050;
             int channels = 1;
 
-            
+
 
             // vf = new VideoFileWriter();
             // vf.Open(time, 640, 480, 30, VideoCodec.MPEG4 );
-
+            duration = new TimeSpan();
             writer = new VideoFileWriter();
             writer.Open(time, 640, 480, frameRate, VideoCodec.Default, bitRate);
             //writer.Open(filename, 640, 480, frameRate, VideoCodec.Default, bitRate,
             //                                    AudioCodec.MP3, audioBitrate, sampleRate, channels);
-            initalizeAudioStuff();
+
 
         }
 
-        private void initalizeAudioStuff()
+        #endregion
+
+        #region stopRecording
+
+        private void MyConnector_stopRecordingEvent(object sender)
         {
-            // Create buffer for wavechart control
-            current = new float[AudioSource.DesiredFrameSize];
-
-            // Create stream to store file
-            stream = new MemoryStream();
-            encoder = new WaveEncoder(stream);
-
-            frames = 0;
-            samples = 0;
-            duration = new TimeSpan();
-
-
-
-            // Start
-            AudioSource.Start();
-
-            
-
+            Dispatcher.Invoke(() =>
+            {
+                Button_Click_1(null, null);
+            });
         }
+
+
+
 
         private void Button_Click_1(object sender, RoutedEventArgs e)
         {
             doAudioStop();
             isRecording = false;
-           // vf.Close();
+            // vf.Close();
             writer.Close();
             try
             {
@@ -344,7 +363,7 @@ namespace WebcamCapture
             }
             catch
             {
-                
+
             }
 
             try
@@ -362,54 +381,32 @@ namespace WebcamCapture
 
         private void combineFiles()
         {
-           // Process.Start("ffmpeg", "-i " + filename + " -i " + filenameAudio + " -c:v copy -c:a aac -strict experimental " + filenameCombined + "");
+            // Process.Start("ffmpeg", "-i " + filename + " -i " + filenameAudio + " -c:v copy -c:a aac -strict experimental " + filenameCombined + "");
 
             process = new Process();
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.RedirectStandardError = true;
             process.StartInfo.FileName = @"C:\FFmpeg\bin\ffmpeg.exe";
 
-            process.StartInfo.Arguments = "-i " + filename + " -i " + filenameAudio + " -c:v copy -c:a aac -strict experimental " + filenameCombined + "";
+            process.StartInfo.Arguments = "-i " + filename + " -i " + filenameAudio + " -c:v copy -c:a aac -strict experimental " + filenameCombined + " -shortest";
 
 
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.CreateNoWindow = true;
-            
+
             process.Start();
             process.WaitForExit();
-       
+
 
         }
 
-      
+        #endregion
 
-        private void doAudioStop()
-        {
-            // Stops both cases
-            if (AudioSource != null)
-            {
-                // If we were recording
-                AudioSource.SignalToStop();
-                AudioSource.WaitForStop();
-            }
-            if (output != null)
-            {
-                // If we were playing
-                output.SignalToStop();
-                output.WaitForStop();
-            }
 
-            var fileStream = File.Create(filenameAudio);
-            stream.WriteTo(fileStream);
-            fileStream.Close();
 
-            // Also zero out the buffers and screen
-            Array.Clear(current, 0, current.Length);
-          //  updateWaveform(current, current.Length);
-          //  SpeechAPI speechApi = new SpeechAPI();
 
-         //   string result = speechApi.AsrData(stream, "wav");
-        }
+
+
 
         private void MainWindow_Closing(object sender, CancelEventArgs e)
         {
