@@ -187,7 +187,7 @@ namespace WebcamCapture
             if (isRecording)
             {
                 System.TimeSpan diff1 = DateTime.Now.Subtract(sartRecordingTime);
-                if (diff1.Seconds >= 1.0 )
+                if (diff1.Seconds >= 0.0 )
                 {
                     //writer.WriteAudioFrame(e.Signal.RawData);
                     e.Signal.CopyTo(current);
@@ -267,12 +267,12 @@ namespace WebcamCapture
             {
 
                 System.TimeSpan diff1 = DateTime.Now.Subtract(sartRecordingTime);
-                if (diff1.Seconds >= 1.0 / 30)
-                {
+                //if (diff1.Seconds >= 1.0 / 30)
+                //{
                     // vf.WriteVideoFrame(bitmap, diff1);
                     writer.WriteVideoFrame(bitmap, diff1);
 
-                }
+                //}
 
 
             }
