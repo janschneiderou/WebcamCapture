@@ -96,13 +96,13 @@ namespace WebcamCapture
             try
             {
                 myConnector = new ConnectorHub.ConnectorHub();
-                myConnector.init();
+                myConnector.Init();
                 myConnector.amIvideo = true;
-                myConnector.sendReady();
+                myConnector.SendReady();
                
 
-                myConnector.startRecordingEvent += MyConnector_startRecordingEvent;
-                myConnector.stopRecordingEvent += MyConnector_stopRecordingEvent;
+                myConnector.StartRecordingEvent += MyConnector_startRecordingEvent;
+                myConnector.StopRecordingEvent += MyConnector_stopRecordingEvent;
             }
             catch
             {
@@ -301,7 +301,7 @@ namespace WebcamCapture
         {
             isRecording = true;
 
-
+            buttonStart.Background = System.Windows.Media.Brushes.Bisque;
             sartRecordingTime = DateTime.Now;
             lastRecordingVideoTime = sartRecordingTime;
             lastRecordingSoundTime = sartRecordingTime;
@@ -355,7 +355,14 @@ namespace WebcamCapture
             doAudioStop();
             isRecording = false;
             // vf.Close();
-            writer.Close();
+            try
+            {
+                writer.Close();
+            }
+            catch(Exception ess)
+            {
+
+            }
             try
             {
                 combineFiles();
@@ -369,7 +376,7 @@ namespace WebcamCapture
             try
             {
                 bool a = process.HasExited;
-                myConnector.sendTCPAsync(myConnector.SendFile + filename + myConnector.endSendFile);
+                myConnector.SendTCPAsync(myConnector.SendFile + filename + myConnector.endSendFile);
             }
             catch (Exception x)
             {
@@ -383,10 +390,15 @@ namespace WebcamCapture
         {
             // Process.Start("ffmpeg", "-i " + filename + " -i " + filenameAudio + " -c:v copy -c:a aac -strict experimental " + filenameCombined + "");
 
+            string FFmpegFilename;
+            string[] text= File.ReadAllLines("FFMPEGLocation.txt");
+            FFmpegFilename = text[0];
+
             process = new Process();
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.RedirectStandardError = true;
-            process.StartInfo.FileName = @"C:\FFmpeg\bin\ffmpeg.exe";
+            process.StartInfo.FileName = FFmpegFilename;
+            // process.StartInfo.FileName = @"C:\FFmpeg\bin\ffmpeg.exe";
 
             process.StartInfo.Arguments = "-i " + filename + " -i " + filenameAudio + " -c:v copy -c:a aac -strict experimental " + filenameCombined + " -shortest";
 
@@ -413,7 +425,7 @@ namespace WebcamCapture
             videoSource.SignalToStop();
             try
             {
-                myConnector.close();
+                myConnector.Close();
             }
             catch
             {

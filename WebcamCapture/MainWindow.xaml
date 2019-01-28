@@ -8,7 +8,7 @@
         Title="MainWindow" Height="480" Width="800">
     <Grid>
         <Image x:Name="ImageWebcam" Width="640" Height="480"/>
-        <Button Content="start" HorizontalAlignment="Left" Margin="747,33,0,0" Click="Button_Click" VerticalAlignment="Top" Width="38"/>
-        <Button Content="stop" HorizontalAlignment="Left" Margin="747,58,0,0" Click="Button_Click_1" VerticalAlignment="Top" Width="38" Height="23"/>
+        <Button x:Name="buttonStart" Content="start" HorizontalAlignment="Left" Margin="747,33,0,0" Click="Button_Click" VerticalAlignment="Top" Width="38"/>
+        <Button x:Name="buttonStop" Content="stop" HorizontalAlignment="Left" Margin="747,58,0,0" Click="Button_Click_1" VerticalAlignment="Top" Width="38" Height="23"/>
     </Grid>
 </Window>
